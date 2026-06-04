@@ -37,6 +37,12 @@ namespace
     }
 }
 
+DrumSynth::DrumSynth()
+{
+    for (int lane = 0; lane < DrumLane::kNumLanes; ++lane)
+        laneGains[(size_t) lane].store (DrumLane::sliderToActualGain (lane, DrumLane::defaultSliderGain (lane)));
+}
+
 void DrumSynth::prepare (double sr)
 {
     sampleRate = sr;
@@ -97,6 +103,23 @@ void DrumSynth::trigger (int note, float vel, int sampleOffset)
     target->noiseLpState       = 0.0f;
 }
 
+void DrumSynth::setLaneGain (int lane, float g)
+{
+    if (lane < 0 || lane >= DrumLane::kNumLanes)
+        return;
+
+    laneGains[(size_t) lane].store (juce::jlimit (0.0f, 1.5f, g));
+}
+
+float DrumSynth::laneGainForNote (int note) const
+{
+    const int lane = DrumLane::noteToLane (note);
+    if (lane < 0)
+        return 1.0f;
+
+    return laneGains[(size_t) lane].load();
+}
+
 float DrumSynth::renderSample (Voice& v, float noise)
 {
     const float t = v.ageSamples / (float) sampleRate;
@@ -144,7 +167,7 @@ float DrumSynth::renderSample (Voice& v, float noise)
             return std::sin (kTwoPi * freq * pitchMod * t) * env * 0.8f;
         }
 
-        case DrumKind::Crash:  return hp * std::exp (-t * 1.3f) * 0.55f;
+        case DrumKind::Crash:  return hp * std::exp (-t * 1.3f) * 0.32f;
         case DrumKind::Splash: return hp * std::exp (-t * 3.0f) * 0.55f;
 
         case DrumKind::Ride:
@@ -176,6 +199,8 @@ void DrumSynth::render (juce::AudioBuffer<float>& buffer, int startSample, int n
     {
         if (! v.active) continue;
 
+        const float laneGain = laneGainForNote (v.noteNumber);
+
         for (int i = v.startOffsetInBlock; i < numSamples; ++i)
         {
             if (v.ageSamples >= v.lifespanSamples)
@@ -185,7 +210,7 @@ void DrumSynth::render (juce::AudioBuffer<float>& buffer, int startSample, int n
             }
 
             const float noise  = rng.nextFloat() * 2.0f - 1.0f;
-            const float sample = renderSample (v, noise) * v.velocity * gain;
+            const float sample = renderSample (v, noise) * v.velocity * gain * laneGain;
 
             for (int ch = 0; ch < numChannels; ++ch)
                 buffer.getWritePointer (ch)[startSample + i] += sample;

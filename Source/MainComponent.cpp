@@ -132,6 +132,42 @@ MainComponent::MainComponent()
     }
     updateKeyBindingLabels();
 
+    addAndMakeVisible (padLevelsToggleButton);
+    padLevelsToggleButton.onClick = [this]
+    {
+        setPadLevelsExpanded (! padLevelsExpanded);
+    };
+    padLevelsToggleButton.setTooltip ("Show or hide per-lane drum pad level controls");
+    updatePadLevelsToggleText();
+
+    for (int lane = 0; lane < DrumNotesView::kNumLanes; ++lane)
+    {
+        auto& label = padLevelLabels[(size_t) lane];
+        addAndMakeVisible (label);
+        label.setText (DrumLane::laneName (lane), juce::dontSendNotification);
+        label.setJustificationType (juce::Justification::centred);
+        label.setColour (juce::Label::textColourId, DrumLane::laneColour (lane));
+
+        auto& slider = padLevelSliders[(size_t) lane];
+        addAndMakeVisible (slider);
+        slider.setSliderStyle (juce::Slider::LinearVertical);
+        slider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 48, 18);
+        slider.setRange (0.0, 1.5, 0.01);
+        slider.setNumDecimalPlacesToDisplay (2);
+        slider.setValue (DrumLane::defaultSliderGain (lane), juce::dontSendNotification);
+        slider.setColour (juce::Slider::thumbColourId, DrumLane::laneColour (lane));
+        slider.setColour (juce::Slider::trackColourId, DrumLane::laneColour (lane).withAlpha (0.7f));
+        slider.setTooltip (juce::String (DrumLane::laneName (lane)) + " level");
+        slider.onValueChange = [this, lane]
+        {
+            applyPadLevel (lane, (float) padLevelSliders[(size_t) lane].getValue());
+        };
+
+        applyPadLevel (lane, (float) slider.getValue());
+    }
+
+    setPadLevelsExpanded (false);
+
     const juce::String keyboardHelp =
         "No drum pad? Click the notes area below to focus, then play with the keyboard:\n"
         "  Space = Kick\n"
@@ -291,6 +327,23 @@ void MainComponent::resized()
     }
 
     area.removeFromTop (6);
+    padLevelsToggleButton.setBounds (area.removeFromTop (26));
+
+    if (padLevelsExpanded)
+    {
+        area.removeFromTop (4);
+        auto row = area.removeFromTop (138);
+        const int cellWidth = row.getWidth() / DrumNotesView::kNumLanes;
+        for (int lane = 0; lane < DrumNotesView::kNumLanes; ++lane)
+        {
+            auto cell = row.removeFromLeft (cellWidth).reduced (6, 0);
+            padLevelLabels[(size_t) lane].setBounds (cell.removeFromTop (18));
+            cell.removeFromTop (4);
+            padLevelSliders[(size_t) lane].setBounds (cell);
+        }
+        area.removeFromTop (10);
+    }
+
     notesView.setBounds (area);
 }
 
@@ -500,6 +553,32 @@ void MainComponent::onKeyBindingEdited (int bindingIndex, const juce::String& te
     keyCodeToNote[newKey] = note;
 
     updateKeyBindingLabels();
+}
+
+void MainComponent::applyPadLevel (int lane, float sliderGain)
+{
+    const float actualGain = DrumLane::sliderToActualGain (lane, sliderGain);
+    drumSynth.setLaneGain (lane, actualGain);
+    drumInput.setLaneGain (lane, actualGain);
+}
+
+void MainComponent::setPadLevelsExpanded (bool expanded)
+{
+    padLevelsExpanded = expanded;
+    updatePadLevelsToggleText();
+
+    for (int lane = 0; lane < DrumNotesView::kNumLanes; ++lane)
+    {
+        padLevelLabels[(size_t) lane].setVisible (expanded);
+        padLevelSliders[(size_t) lane].setVisible (expanded);
+    }
+
+    resized();
+}
+
+void MainComponent::updatePadLevelsToggleText()
+{
+    padLevelsToggleButton.setButtonText (padLevelsExpanded ? "Pad levels v" : "Pad levels >");
 }
 
 bool MainComponent::keyPressed (const juce::KeyPress& key, juce::Component*)

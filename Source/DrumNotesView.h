@@ -2,6 +2,7 @@
 
 #include <JuceHeader.h>
 
+#include "DrumLane.h"
 #include "MidiPlayer.h"
 
 // Vertical Guitar-Hero-style lanes. Notes stream down from the top and line up
@@ -18,7 +19,7 @@ public:
 
     void setLookAheadSeconds (double seconds);
 
-    static constexpr int kNumLanes = 8;
+    static constexpr int kNumLanes = DrumLane::kNumLanes;
 
     // Public so MainComponent (or tests) could reuse the mapping. Returns -1 for
     // notes we don't visualise (e.g. cowbell, hand clap).

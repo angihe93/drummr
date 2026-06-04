@@ -2,6 +2,7 @@
 
 #include <JuceHeader.h>
 
+#include <array>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -42,6 +43,9 @@ private:
     void rebuildKeyBindings();
     void updateKeyBindingLabels();
     void onKeyBindingEdited (int bindingIndex, const juce::String& text);
+    void applyPadLevel (int lane, float sliderGain);
+    void setPadLevelsExpanded (bool expanded);
+    void updatePadLevelsToggleText();
     static juce::String keyCodeToDisplayString (int keyCode);
     static int          displayStringToKeyCode (const juce::String& s);
 
@@ -52,6 +56,7 @@ private:
 
     bool userDraggingSeek { false };
     bool keyListenerInstalled { false };
+    bool padLevelsExpanded { false };
 
     juce::TextButton loadButton       { "Load MIDI file..." };
     juce::TextButton playButton       { "Play" };
@@ -73,6 +78,7 @@ private:
     juce::Label      midiInputLabel;
     juce::Label      statusLabel;
     juce::Label      positionLabel;
+    juce::TextButton padLevelsToggleButton;
     juce::TooltipWindow tooltipWindow { this, 400 };
 
     std::unique_ptr<juce::FileChooser> chooser;
@@ -93,6 +99,8 @@ private:
     juce::Label                       bindingNameLabels[numDrumBindings];
     juce::Label                       bindingValueLabels[numDrumBindings];
     juce::Label                       keyBindingsHeader;
+    std::array<juce::Label,  DrumNotesView::kNumLanes> padLevelLabels;
+    std::array<juce::Slider, DrumNotesView::kNumLanes> padLevelSliders;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainComponent)
 };

@@ -22,6 +22,7 @@ public:
                        int startSample, int numSamples);
 
     void setMasterGain (float g) { synth.setMasterGain (g); }
+    void setLaneGain   (int lane, float g) { synth.setLaneGain (lane, g); }
 
     // Thread-safe. Called from the UI thread when a computer-keyboard drum
     // key is pressed.
