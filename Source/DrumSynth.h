@@ -4,10 +4,14 @@
 #include <array>
 #include <atomic>
 
+#include "DrumLane.h"
+
 class DrumSynth
 {
 public:
     static constexpr int kMaxVoices = 48;
+
+    DrumSynth();
 
     void prepare (double sampleRate);
     void reset();
@@ -17,6 +21,7 @@ public:
     void render  (juce::AudioBuffer<float>& buffer, int startSample, int numSamples);
 
     void setMasterGain (float g) { masterGain.store (juce::jlimit (0.0f, 2.0f, g)); }
+    void setLaneGain   (int lane, float g);
 
 private:
     struct Voice
@@ -32,9 +37,11 @@ private:
 
     int   lifespanForNote (int note) const;
     float renderSample    (Voice& v, float noise);
+    float laneGainForNote (int note) const;
 
     std::array<Voice, kMaxVoices> voices {};
-    double             sampleRate { 44100.0 };
-    juce::Random       rng        { 20260418 };
-    std::atomic<float> masterGain { 0.8f };
+    std::array<std::atomic<float>, DrumLane::kNumLanes> laneGains;
+    double                                              sampleRate { 44100.0 };
+    juce::Random                                        rng        { 20260418 };
+    std::atomic<float>                                  masterGain { 0.8f };
 };
