@@ -1,5 +1,20 @@
 #include "MainComponent.h"
 
+namespace
+{
+constexpr int kNumBindingSettings = 9;
+
+constexpr const char* bindingNames[kNumBindingSettings] = {
+    "Kick", "Snare", "HH Closed", "HH Open",
+    "Hi Tom", "Mid Tom", "Floor Tom", "Ride", "Crash"
+};
+
+constexpr const char* bindingSettingKeys[kNumBindingSettings] = {
+    "kick", "snare", "hhClosed", "hhOpen",
+    "hiTom", "midTom", "floorTom", "ride", "crash"
+};
+} // namespace
+
 MainComponent::MainComponent()
 {
     addAndMakeVisible (loadButton);
@@ -115,6 +130,10 @@ MainComponent::MainComponent()
                                juce::dontSendNotification);
     addAndMakeVisible (keyBindingsHeader);
 
+    addAndMakeVisible (saveBindingsButton);
+    saveBindingsButton.onClick = [this] { saveKeyBindings(); };
+    saveBindingsButton.setTooltip ("Persist the current keyboard bindings between launches");
+
     for (int i = 0; i < numDrumBindings; ++i)
     {
         addAndMakeVisible (bindingNameLabels[i]);
@@ -130,7 +149,9 @@ MainComponent::MainComponent()
         v.setEditable (true, true, false);
         v.onTextChange = [this, i] { onKeyBindingEdited (i, bindingValueLabels[i].getText()); };
     }
+    loadSavedKeyBindings();
     updateKeyBindingLabels();
+    updateSaveBindingsButton();
 
     addAndMakeVisible (padLevelsToggleButton);
     padLevelsToggleButton.onClick = [this]
@@ -313,7 +334,11 @@ void MainComponent::resized()
     }
 
     area.removeFromTop (4);
-    keyBindingsHeader.setBounds (area.removeFromTop (20));
+    auto keyBindingsRow = area.removeFromTop (26);
+    saveBindingsButton.setBounds (keyBindingsRow.removeFromRight (120));
+    keyBindingsRow.removeFromRight (8);
+    keyBindingsHeader.setBounds (keyBindingsRow);
+    area.removeFromTop (4);
     {
         auto row = area.removeFromTop (24);
         const int cellWidth = row.getWidth() / numDrumBindings;
@@ -467,6 +492,36 @@ int MainComponent::keyCodeToDrumNote (int keyCode) const
     return it != keyCodeToNote.end() ? it->second : -1;
 }
 
+int MainComponent::getBindingKeyCode (int bindingIndex) const
+{
+    const int note = bindingNotes[bindingIndex];
+
+    for (const auto& kv : keyCodeToNote)
+        if (kv.second == note)
+            return kv.first;
+
+    return 0;
+}
+
+bool MainComponent::setBindingKeyCode (int bindingIndex, int keyCode)
+{
+    const int note = bindingNotes[bindingIndex];
+    const int currentKey = getBindingKeyCode (bindingIndex);
+    if (currentKey == keyCode)
+        return false;
+
+    for (auto it = keyCodeToNote.begin(); it != keyCodeToNote.end();)
+    {
+        if (it->second == note || it->first == keyCode)
+            it = keyCodeToNote.erase (it);
+        else
+            ++it;
+    }
+
+    keyCodeToNote[keyCode] = note;
+    return true;
+}
+
 juce::String MainComponent::keyCodeToDisplayString (int keyCode)
 {
     if (keyCode == juce::KeyPress::spaceKey) return "Space";
@@ -506,16 +561,29 @@ void MainComponent::rebuildKeyBindings()
         { 'K',                      51 }, // Ride
         { 'L',                      49 }, // Crash
     };
-    const char* const names[numDrumBindings] = {
-        "Kick", "Snare", "HH Closed", "HH Open",
-        "Hi Tom", "Mid Tom", "Floor Tom", "Ride", "Crash"
-    };
-
     for (int i = 0; i < numDrumBindings; ++i)
     {
         bindingNotes[i] = defaults[i].second;
         keyCodeToNote[defaults[i].first] = defaults[i].second;
-        bindingNameLabels[i].setText (names[i], juce::dontSendNotification);
+        bindingNameLabels[i].setText (bindingNames[i], juce::dontSendNotification);
+    }
+}
+
+void MainComponent::loadSavedKeyBindings()
+{
+    auto* settings = getAppSettings();
+    if (settings == nullptr)
+        return;
+
+    for (int i = 0; i < numDrumBindings; ++i)
+    {
+        const auto value = settings->getValue ("keyBinding." + juce::String (bindingSettingKeys[i]));
+        if (value.isEmpty())
+            continue;
+
+        const int keyCode = displayStringToKeyCode (value);
+        if (keyCode != 0)
+            setBindingKeyCode (i, keyCode);
     }
 }
 
@@ -523,12 +591,31 @@ void MainComponent::updateKeyBindingLabels()
 {
     for (int i = 0; i < numDrumBindings; ++i)
     {
-        juce::String shown;
-        for (const auto& kv : keyCodeToNote)
-            if (kv.second == bindingNotes[i])
-                shown = keyCodeToDisplayString (kv.first);
-        bindingValueLabels[i].setText (shown, juce::dontSendNotification);
+        bindingValueLabels[i].setText (keyCodeToDisplayString (getBindingKeyCode (i)),
+                                       juce::dontSendNotification);
     }
+}
+
+void MainComponent::saveKeyBindings()
+{
+    auto* settings = getAppSettings();
+    if (settings == nullptr)
+        return;
+
+    for (int i = 0; i < numDrumBindings; ++i)
+    {
+        settings->setValue ("keyBinding." + juce::String (bindingSettingKeys[i]),
+                            keyCodeToDisplayString (getBindingKeyCode (i)));
+    }
+
+    saveAppSettings();
+    keyBindingsDirty = false;
+    updateSaveBindingsButton();
+}
+
+void MainComponent::updateSaveBindingsButton()
+{
+    saveBindingsButton.setEnabled (keyBindingsDirty);
 }
 
 void MainComponent::onKeyBindingEdited (int bindingIndex, const juce::String& text)
@@ -540,19 +627,11 @@ void MainComponent::onKeyBindingEdited (int bindingIndex, const juce::String& te
         return;
     }
 
-    const int note = bindingNotes[bindingIndex];
-
-    // Remove any existing entry that maps to this note (old key for this drum).
-    for (auto it = keyCodeToNote.begin(); it != keyCodeToNote.end(); )
-    {
-        if (it->second == note) it = keyCodeToNote.erase (it);
-        else                    ++it;
-    }
-    // If the chosen key is already bound to a different drum, override it —
-    // a keycode can only map to one note at a time.
-    keyCodeToNote[newKey] = note;
+    if (setBindingKeyCode (bindingIndex, newKey))
+        keyBindingsDirty = true;
 
     updateKeyBindingLabels();
+    updateSaveBindingsButton();
 }
 
 void MainComponent::applyPadLevel (int lane, float sliderGain)
