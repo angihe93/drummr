@@ -25,6 +25,8 @@ juce_generate_juce_header(Drummr)
 
 target_sources(Drummr PRIVATE
     Source/Main.cpp
+    Source/AppSettings.cpp
+    Source/AppSettings.h
     Source/MainComponent.cpp
     Source/MainComponent.h
     Source/DrumSynth.cpp

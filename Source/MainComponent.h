@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include "AppSettings.h"
 #include "DrumInput.h"
 #include "DrumNotesView.h"
 #include "DrumSynth.h"
@@ -40,8 +41,13 @@ private:
     void setActiveMidiDevice (const juce::String& deviceId);
     int  keyCodeToDrumNote (int keyCode) const;
 
+    int  getBindingKeyCode (int bindingIndex) const;
+    bool setBindingKeyCode (int bindingIndex, int keyCode);
     void rebuildKeyBindings();
+    void loadSavedKeyBindings();
+    void saveKeyBindings();
     void updateKeyBindingLabels();
+    void updateSaveBindingsButton();
     void onKeyBindingEdited (int bindingIndex, const juce::String& text);
     void applyPadLevel (int lane, float sliderGain);
     void setPadLevelsExpanded (bool expanded);
@@ -56,6 +62,7 @@ private:
 
     bool userDraggingSeek { false };
     bool keyListenerInstalled { false };
+    bool keyBindingsDirty { false };
     bool padLevelsExpanded { false };
 
     juce::TextButton loadButton       { "Load MIDI file..." };
@@ -63,6 +70,7 @@ private:
     juce::TextButton stopButton       { "Stop" };
     juce::TextButton seekBackButton   { "-10s" };
     juce::TextButton seekForwardButton{ "+10s" };
+    juce::TextButton saveBindingsButton { "Save bindings" };
     juce::Slider     seekSlider;
     juce::Slider     tempoSlider;
     juce::Label      tempoLabel;
